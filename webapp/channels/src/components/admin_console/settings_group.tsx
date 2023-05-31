@@ -1,27 +1,19 @@
-// Copyright (c) 2015-present Mattermost, Inc. All Rights Reserved.
-// See LICENSE.txt for license information.
+import React, { ReactNode } from 'react';
 
-import PropTypes from 'prop-types';
-import React from 'react';
+interface SettingsGroupProps {
+    show: boolean;
+    header?: ReactNode;
+    title?: ReactNode;
+    subtitle?: ReactNode;
+    children?: ReactNode;
+    container?: boolean;
+}
 
-export default class SettingsGroup extends React.PureComponent {
-    static get propTypes() {
-        return {
-            show: PropTypes.bool.isRequired,
-            header: PropTypes.node,
-            title: PropTypes.node,
-            subtitle: PropTypes.node,
-            children: PropTypes.node,
-            container: PropTypes.bool,
-        };
-    }
-
-    static get defaultProps() {
-        return {
-            show: true,
-            container: true,
-        };
-    }
+export default class SettingsGroup extends React.PureComponent<SettingsGroupProps> {
+    static defaultProps: SettingsGroupProps = {
+        show: true,
+        container: true,
+    };
 
     render() {
         let wrapperClass = '';

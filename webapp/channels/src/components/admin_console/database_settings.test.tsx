@@ -2,11 +2,11 @@
 // See LICENSE.txt for license information.
 
 import React from 'react';
-import {shallow} from 'enzyme';
+import {shallow, ShallowWrapper} from 'enzyme';
 
-import DatabaseSettings from 'components/admin_console/database_settings.jsx';
+import DatabaseSettings from 'components/admin_console/database_settings';
 
-jest.mock('actions/admin_actions.jsx', () => {
+jest.mock('actions/admin_actions', () => {
     const pingFn = () => {
         return jest.fn(() => {
             return {ActiveSearchBackend: 'none'};
@@ -25,6 +25,7 @@ describe('components/DatabaseSettings', () => {
             Cluster: 'true',
         },
     };
+
     test('should match snapshot', () => {
         const props = {
             ...baseProps,
@@ -45,7 +46,7 @@ describe('components/DatabaseSettings', () => {
                 MinimumHashtagLength: 10,
             },
         };
-        const wrapper = shallow(
+        const wrapper: ShallowWrapper = shallow(
             <DatabaseSettings
                 {...props}
                 config={config}
