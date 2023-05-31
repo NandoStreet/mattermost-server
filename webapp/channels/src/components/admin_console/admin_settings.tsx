@@ -186,7 +186,7 @@ export default abstract class AdminSettings <Props extends BaseProps, State exte
         return n;
     };
 
-    protected parseIntNonZero = (str: string, defaultValue?: number, minimumValue = 1) => {
+    public parseIntNonZero = (str: string, defaultValue?: number, minimumValue = 1) => {
         const n = parseInt(str, 10);
 
         if (isNaN(n) || n < minimumValue) {
@@ -199,7 +199,7 @@ export default abstract class AdminSettings <Props extends BaseProps, State exte
         return n;
     };
 
-    private getConfigValue(config: AdminConfig | EnvironmentConfig, path: string) {
+    public getConfigValue(config: AdminConfig | EnvironmentConfig, path: string) {
         const pathParts = path.split('.');
 
         return pathParts.reduce((obj: object | null, pathPart) => {
@@ -228,7 +228,7 @@ export default abstract class AdminSettings <Props extends BaseProps, State exte
         setValue(config, path.split('.'));
     }
 
-    protected isSetByEnv = (path: string) => {
+    public isSetByEnv = (path: string) => {
         return Boolean(this.props.environmentConfig && this.getConfigValue(this.props.environmentConfig!, path));
     };
 
