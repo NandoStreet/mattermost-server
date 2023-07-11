@@ -10,8 +10,8 @@ import (
 	"github.com/blevesearch/bleve/v2"
 	"github.com/blevesearch/bleve/v2/search/query"
 
-	"github.com/mattermost/mattermost-server/server/public/model"
-	"github.com/mattermost/mattermost-server/server/public/shared/mlog"
+	"github.com/mattermost/mattermost/server/public/model"
+	"github.com/mattermost/mattermost/server/public/shared/mlog"
 )
 
 const DeletePostsBatchSize = 500
@@ -315,81 +315,63 @@ func (b *BleveEngine) IndexChannel(channel *model.Channel, userIDs, teamMemberID
 }
 
 func (b *BleveEngine) SearchChannels(teamId, userID, term string, isGuest bool) ([]string, *model.AppError) {
-	// This query essentially boils down to (if teamID is passed):
-	// match teamID == <>
-	// AND
-	// match term == <>
-	// AND
-	// match (channelType != 'P' || (<> in userIDs && channelType == 'P'))
+    queries := []query.Query{}
+    
+    teamIdQ := BleveEngine.NewTermQuery(teamId)
+    teamIdQ.SetField("TeamId")
+    
+    teamMemberQ := BleveEngine.NewTermQuery(userID)
+    teamMemberQ.SetField("TeamMemberIDs")
+    
+    if teamId != "" {
+        queries = append(queries, teamIdQ)
+    } else {
+        queries = append(queries, teamMemberQ)
+    }
 
-	// (or if teamID is not passed)
-	// <> in teamMemberIds
-	// AND
-	// match term == <>
-	// AND
-	// match (channelType != 'P' || (<> in userIDs && channelType == 'P'))
+    userIDQ := BleveEngine.NewTermQuery(userID)
+    userIDQ.SetField("UserIDs")
+    
+    if isGuest {
+        userQ := BleveEngine.NewBooleanQuery()
+        userQ.AddMust(userIDQ)
+        queries = append(queries, userIDQ)
+    } else {
+        boolNotPrivate := BleveEngine.NewBooleanQuery()
+        privateQ := BleveEngine.NewTermQuery(string(model.ChannelTypePrivate))
+        privateQ.SetField("Type")
+        boolNotPrivate.AddMustNot(privateQ)
+		
+        userQ := BleveEngine.NewBooleanQuery()
+        userQ.AddMust(userIDQ)
+        userQ.AddMust(privateQ)
 
-	// (or if isGuest is true)
-	// <> in teamMemberIds
-	// AND
-	// match term == <>
-	// AND
-	// match (<> in userIDs)
+        channelTypeQ := BleveEngine.NewDisjunctionQuery()
+        channelTypeQ.AddQuery(boolNotPrivate)
+        channelTypeQ.AddQuery(userQ)
+        queries = append(queries, channelTypeQ)
+    }
 
-	queries := []query.Query{}
-	if teamId != "" {
-		teamIdQ := bleve.NewTermQuery(teamId)
-		teamIdQ.SetField("TeamId")
-		queries = append(queries, teamIdQ)
-	} else {
-		teamMemberQ := bleve.NewTermQuery(userID)
-		teamMemberQ.SetField("TeamMemberIDs")
-		queries = append(queries, teamMemberQ)
-	}
+    if term != "" {
+        nameSuggestQ := BleveEngine.NewPrefixQuery(strings.ToLower(term))
+        nameSuggestQ.SetField("NameSuggest")
+        queries = append(queries, nameSuggestQ)
+    }
 
-	if isGuest {
-		userQ := bleve.NewBooleanQuery()
-		userIDQ := bleve.NewTermQuery(userID)
-		userIDQ.SetField("UserIDs")
-		userQ.AddMust(userIDQ)
-		queries = append(queries, userIDQ)
-	} else {
-		boolNotPrivate := bleve.NewBooleanQuery()
-		privateQ := bleve.NewTermQuery(string(model.ChannelTypePrivate))
-		privateQ.SetField("Type")
-		boolNotPrivate.AddMustNot(privateQ)
+    query := BleveEngine.NewSearchRequest(BleveEngine.NewConjunctionQuery(queries...))
+    query.Size = model.ChannelSearchDefaultLimit
 
-		userQ := bleve.NewBooleanQuery()
-		userIDQ := bleve.NewTermQuery(userID)
-		userIDQ.SetField("UserIDs")
-		userQ.AddMust(userIDQ)
-		userQ.AddMust(privateQ)
+    results, err := b.ChannelIndex.Search(query)
+    if err != nil {
+        return nil, model.NewAppError("Bleveengine.SearchChannels", "bleveengine.search_channels.error", nil, "", http.StatusInternalServerError).Wrap(err)
+    }
 
-		channelTypeQ := bleve.NewDisjunctionQuery()
-		channelTypeQ.AddQuery(boolNotPrivate)
-		channelTypeQ.AddQuery(userQ) // userID && 'p'
-		queries = append(queries, channelTypeQ)
-	}
+    channelIds := []string{}
+    for _, result := range results.Hits {
+        channelIds = append(channelIds, result.ID)
+    }
 
-	if term != "" {
-		nameSuggestQ := bleve.NewPrefixQuery(strings.ToLower(term))
-		nameSuggestQ.SetField("NameSuggest")
-		queries = append(queries, nameSuggestQ)
-	}
-
-	query := bleve.NewSearchRequest(bleve.NewConjunctionQuery(queries...))
-	query.Size = model.ChannelSearchDefaultLimit
-	results, err := b.ChannelIndex.Search(query)
-	if err != nil {
-		return nil, model.NewAppError("Bleveengine.SearchChannels", "bleveengine.search_channels.error", nil, "", http.StatusInternalServerError).Wrap(err)
-	}
-
-	channelIds := []string{}
-	for _, result := range results.Hits {
-		channelIds = append(channelIds, result.ID)
-	}
-
-	return channelIds, nil
+    return channelIds, nil
 }
 
 func (b *BleveEngine) DeleteChannel(channel *model.Channel) *model.AppError {
